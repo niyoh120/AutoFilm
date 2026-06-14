@@ -26,7 +26,7 @@ pub enum Resolution {
     P480,
     P720,
     P1080,
-    Custom(usize, usize),
+    Custom(u32, u32),
 }
 
 impl Default for Resolution {
@@ -38,31 +38,24 @@ impl Default for Resolution {
 impl Resolution {
     /// 将配置分辨率转换为图像库使用的宽高。
     ///
-    /// 自定义尺寸会拒绝零值和超过 `u32` 表示范围的数值，避免后续图像分配
-    /// 出现截断或不可预期行为。
+    /// 自定义尺寸会拒绝零值，避免创建无效画布。
     pub fn dimensions(self) -> Result<(u32, u32), String> {
-        let (width, height) = match self {
-            Self::P480 => (854, 480),
-            Self::P720 => (1280, 720),
-            Self::P1080 => (1920, 1080),
-            Self::Custom(width, height) => {
-                if width == 0 || height == 0 {
-                    return Err("自定义分辨率的宽高必须大于零".to_string());
-                }
-                (
-                    u32::try_from(width).map_err(|_| "自定义分辨率宽度超过 u32 范围")?,
-                    u32::try_from(height).map_err(|_| "自定义分辨率高度超过 u32 范围")?,
-                )
+        match self {
+            Self::P480 => Ok((854, 480)),
+            Self::P720 => Ok((1280, 720)),
+            Self::P1080 => Ok((1920, 1080)),
+            Self::Custom(0, _) | Self::Custom(_, 0) => {
+                Err("自定义分辨率的宽高必须大于零".to_string())
             }
-        };
-        Ok((width, height))
+            Self::Custom(width, height) => Ok((width, height)),
+        }
     }
 }
 
 #[derive(Deserialize, Serialize)]
 struct CustomResolution {
-    width: usize,
-    height: usize,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -220,14 +213,6 @@ custom:
         );
 
         assert!(zero.is_err());
-
-        if usize::BITS > u32::BITS {
-            assert!(
-                Resolution::Custom(u32::MAX as usize + 1, 1080)
-                    .dimensions()
-                    .is_err()
-            );
-        }
     }
 
     #[test]
