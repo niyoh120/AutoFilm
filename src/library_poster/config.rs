@@ -54,10 +54,6 @@ pub struct LibraryConfig {
     #[serde(default)]
     pub subtitle: String,
     #[serde(default)]
-    pub style: Option<Style>,
-    #[serde(default)]
-    pub resolution: Option<Resolution>,
-    #[serde(default)]
     pub sort: Sort,
 }
 
@@ -110,22 +106,12 @@ libraries:
   - name: 电影
     title: 电影
     subtitle: MOVIE
-    style: split
-    resolution: {width: 1600, height: 900}
     sort: random
 "#,
         )
         .unwrap();
 
         assert_eq!(config.render.style, Style::Collage);
-        assert_eq!(config.libraries[0].style, Some(Style::Split));
-        assert_eq!(
-            config.libraries[0].resolution,
-            Some(Resolution::Custom {
-                width: 1600,
-                height: 900
-            })
-        );
         assert_eq!(config.libraries[0].sort, Sort::Random);
     }
 }

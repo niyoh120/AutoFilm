@@ -10,7 +10,7 @@ use thiserror::Error;
 use tracing::{debug, error, info, warn};
 
 use super::renderer::{self, Fonts};
-use super::{Config, LibraryConfig, RenderConfig, Sort, Style};
+use super::{Config, LibraryConfig, Sort, Style};
 use crate::media_server::{Client, ImageKind, Library, MediaItem};
 
 #[derive(Debug, Default)]
@@ -149,7 +149,7 @@ impl LibraryPoster {
         library: &Library,
         library_config: &LibraryConfig,
     ) -> Result<LibraryResult> {
-        let render_config = effective_render_config(&self.config.render, library_config);
+        let render_config = &self.config.render;
         let sort_by = sort_name(library_config.sort);
         let random_seed = matches!(library_config.sort, Sort::Random).then(rand::random);
         debug!(
@@ -218,7 +218,7 @@ impl LibraryPoster {
             title,
             &library_config.subtitle,
             &self.fonts,
-            &render_config,
+            render_config,
         )?;
         let png = encode_png(poster)?;
 
@@ -278,17 +278,6 @@ fn load_font(path: &Path) -> Result<FontArc> {
         source,
     })?;
     FontArc::try_from_vec(data).map_err(|_| Error::InvalidFont(path.to_path_buf()))
-}
-
-fn effective_render_config(default: &RenderConfig, library: &LibraryConfig) -> RenderConfig {
-    let mut config = default.clone();
-    if let Some(style) = library.style {
-        config.style = style;
-    }
-    if let Some(resolution) = library.resolution {
-        config.resolution = resolution;
-    }
-    config
 }
 
 fn sort_name(sort: Sort) -> &'static str {
@@ -434,8 +423,6 @@ mod tests {
     use image::RgbaImage;
 
     use super::*;
-    use crate::library_poster::Resolution;
-
     fn item(
         id: &str,
         item_type: &str,
@@ -455,33 +442,6 @@ mod tests {
                 .map(|tag| HashMap::from([("Primary".to_string(), tag.to_string())]))
                 .unwrap_or_default(),
         }
-    }
-
-    #[test]
-    fn applies_library_render_overrides() {
-        let default = RenderConfig::default();
-        let library = LibraryConfig {
-            name: "电影".to_string(),
-            title: String::new(),
-            subtitle: String::new(),
-            style: Some(Style::Split),
-            resolution: Some(Resolution::Custom {
-                width: 1600,
-                height: 900,
-            }),
-            sort: Sort::Random,
-        };
-
-        let result = effective_render_config(&default, &library);
-
-        assert_eq!(result.style, Style::Split);
-        assert_eq!(
-            result.resolution,
-            Resolution::Custom {
-                width: 1600,
-                height: 900
-            }
-        );
     }
 
     #[test]
