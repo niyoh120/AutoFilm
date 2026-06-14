@@ -170,10 +170,10 @@ impl LibraryPoster {
             return Err(renderer::Error::MissingImage.into());
         }
 
-        let required = if render_config.style == Style::Collage {
-            9
-        } else {
-            1
+        let required = match render_config.style {
+            Style::Collage => 9,
+            Style::Card => 7,
+            Style::Split | Style::Blur => 1,
         };
         let mut images = Vec::new();
         for reference in references {
@@ -307,7 +307,7 @@ fn select_image_references(items: &[MediaItem], style: Style) -> Vec<ImageRefere
             continue;
         }
 
-        let reference = if style == Style::Collage {
+        let reference = if matches!(style, Style::Card | Style::Collage) {
             primary_reference(item).or_else(|| backdrop_reference(item))
         } else {
             backdrop_reference(item).or_else(|| primary_reference(item))
@@ -469,7 +469,7 @@ mod tests {
         assert_eq!(collage.len(), 1);
         assert_eq!(collage[0].kind, ImageKind::Primary);
         assert_eq!(card.len(), 1);
-        assert_eq!(card[0].kind, ImageKind::Backdrop);
+        assert_eq!(card[0].kind, ImageKind::Primary);
     }
 
     #[test]

@@ -128,6 +128,31 @@ mod tests {
     }
 
     #[test]
+    fn card_accepts_partial_and_complete_image_sets() {
+        for count in [1, 2, 3, 4, 5, 6, 7] {
+            let config = RenderConfig {
+                style: Style::Card,
+                resolution: Resolution::Custom {
+                    width: 640,
+                    height: 360,
+                },
+                ..RenderConfig::default()
+            };
+
+            let poster = render(
+                &image_count(count),
+                "动漫",
+                "ANIME COLLECTION",
+                &fonts(),
+                &config,
+            )
+            .unwrap();
+
+            assert_eq!(poster.dimensions(), (640, 360));
+        }
+    }
+
+    #[test]
     fn blur_accepts_long_english_subtitle() {
         let config = RenderConfig {
             style: Style::Blur,
@@ -184,10 +209,10 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             paths.shuffle(&mut rand::rng());
-            paths.truncate(if matches!(style, Style::Collage) {
-                9
-            } else {
-                1
+            paths.truncate(match style {
+                Style::Collage => 9,
+                Style::Card => 7,
+                Style::Split | Style::Blur => 1,
             });
             let images = paths
                 .iter()
