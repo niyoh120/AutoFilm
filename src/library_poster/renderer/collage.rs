@@ -30,7 +30,7 @@ pub fn render(
     let grid_height = card_height as f32 * 3.0 + row_spacing * 2.0;
     let start_x = width as f32 * 0.84 - grid_width / 2.0;
     let start_y = height as f32 * 0.50 - grid_height / 2.0;
-    let angle = -18.0_f32.to_radians();
+    let angle = 18.0_f32.to_radians();
     let collage_width = grid_width.ceil() as u32;
     let collage_height = (grid_height + height as f32 * 0.06).ceil() as u32;
 
