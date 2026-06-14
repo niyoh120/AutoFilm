@@ -182,6 +182,11 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+    use std::thread;
+
     use super::*;
     use crate::media_server::Kind;
 
@@ -209,5 +214,130 @@ mod tests {
         let client = Client::new(config("http://localhost:8096")).unwrap();
 
         assert_eq!(client.resolve_user_id().await.unwrap(), "user");
+    }
+
+    #[tokio::test]
+    async fn performs_authenticated_media_server_workflow() {
+        let (base_url, requests) = spawn_server(vec![
+            Response::json(r#"[{"Id":"user"}]"#),
+            Response::json(r#"{"Items":[{"Id":"library","Name":"电影"}]}"#),
+            Response::json(
+                r#"{"Items":[{"Id":"movie","Type":"Movie","ImageTags":{"Primary":"tag"}}]}"#,
+            ),
+            Response::bytes("200 OK", "image/png", b"image".to_vec()),
+            Response::bytes("204 No Content", "text/plain", Vec::new()),
+        ]);
+        let mut server_config = config(&base_url);
+        server_config.user_id = None;
+        let client = Client::new(server_config).unwrap();
+
+        assert_eq!(client.resolve_user_id().await.unwrap(), "user");
+        let libraries = client.libraries().await.unwrap();
+        let items = client
+            .items("user", "library", "DateCreated", None, 50)
+            .await
+            .unwrap();
+        let image = client
+            .download_image("movie", ImageKind::Primary, Some("tag"))
+            .await
+            .unwrap();
+        client
+            .upload_primary_image("library", "encoded-image")
+            .await
+            .unwrap();
+
+        assert_eq!(libraries[0].name, "电影");
+        assert_eq!(items[0].id, "movie");
+        assert_eq!(image, b"image");
+
+        let requests = (0..5).map(|_| requests.recv().unwrap()).collect::<Vec<_>>();
+        assert!(requests[0].starts_with("GET /Users?api_key=secret HTTP/1.1"));
+        assert!(requests[1].contains("/Library/MediaFolders?api_key=secret"));
+        assert!(requests[2].contains("ParentId=library"));
+        assert!(requests[2].contains("SortBy=DateCreated"));
+        assert!(requests[3].contains("/Items/movie/Images/Primary?api_key=secret&tag=tag"));
+        assert!(requests[4].starts_with("POST /Items/library/Images/Primary?api_key=secret"));
+        assert!(
+            requests[4]
+                .to_ascii_lowercase()
+                .contains("x-emby-token: secret")
+        );
+        assert!(requests[4].ends_with("encoded-image"));
+    }
+
+    struct Response {
+        status: &'static str,
+        content_type: &'static str,
+        body: Vec<u8>,
+    }
+
+    impl Response {
+        fn json(body: &str) -> Self {
+            Self::bytes("200 OK", "application/json", body.as_bytes().to_vec())
+        }
+
+        fn bytes(status: &'static str, content_type: &'static str, body: Vec<u8>) -> Self {
+            Self {
+                status,
+                content_type,
+                body,
+            }
+        }
+    }
+
+    fn spawn_server(responses: Vec<Response>) -> (String, mpsc::Receiver<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (sender, receiver) = mpsc::channel();
+
+        thread::spawn(move || {
+            for response in responses {
+                let (mut stream, _) = listener.accept().unwrap();
+                let request = read_request(&mut stream);
+                sender
+                    .send(String::from_utf8_lossy(&request).to_string())
+                    .unwrap();
+                write!(
+                    stream,
+                    "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    response.status,
+                    response.content_type,
+                    response.body.len()
+                )
+                .unwrap();
+                stream.write_all(&response.body).unwrap();
+            }
+        });
+
+        (format!("http://{address}"), receiver)
+    }
+
+    fn read_request(stream: &mut std::net::TcpStream) -> Vec<u8> {
+        let mut request = Vec::new();
+        let mut buffer = [0u8; 4096];
+        loop {
+            let read = stream.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            request.extend_from_slice(&buffer[..read]);
+            let Some(header_end) = request.windows(4).position(|part| part == b"\r\n\r\n") else {
+                continue;
+            };
+            let header_end = header_end + 4;
+            let headers = String::from_utf8_lossy(&request[..header_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    line.to_ascii_lowercase()
+                        .strip_prefix("content-length:")
+                        .and_then(|value| value.trim().parse::<usize>().ok())
+                })
+                .unwrap_or_default();
+            if request.len() >= header_end + content_length {
+                break;
+            }
+        }
+        request
     }
 }
