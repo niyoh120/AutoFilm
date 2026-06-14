@@ -1,5 +1,5 @@
 use image::{DynamicImage, Rgba, RgbaImage};
-use imageproc::geometric_transformations::{Interpolation, rotate_about_center};
+use imageproc::geometric_transformations::{Border, Interpolation, rotate_about_center};
 
 use super::utils::{
     adjust_brightness, apply_rounded_corners, cover, dominant_color, draw_titles_wrapped,
@@ -254,7 +254,7 @@ fn rotate_around_bottom_anchor(card: &RgbaImage, angle: f32) -> AnchoredCard {
         &pivot_canvas,
         angle.to_radians(),
         Interpolation::Bicubic,
-        Rgba([0, 0, 0, 0]),
+        Border::Constant(Rgba([0, 0, 0, 0])),
     );
     let opaque_bottom = image
         .enumerate_pixels()

@@ -1,6 +1,6 @@
 use image::imageops::overlay;
 use image::{DynamicImage, Rgba, RgbaImage};
-use imageproc::geometric_transformations::{Interpolation, rotate_about_center};
+use imageproc::geometric_transformations::{Border, Interpolation, rotate_about_center};
 
 use super::utils::{
     apply_rounded_corners, cover, dominant_color, draw_titles_wrapped, gradient_background,
@@ -87,7 +87,12 @@ pub fn render(
         );
     }
 
-    let rotated = rotate_about_center(&collage, angle, Interpolation::Bicubic, Rgba([0, 0, 0, 0]));
+    let rotated = rotate_about_center(
+        &collage,
+        angle,
+        Interpolation::Bicubic,
+        Border::Constant(Rgba([0, 0, 0, 0])),
+    );
     overlay(
         &mut canvas,
         &rotated,
