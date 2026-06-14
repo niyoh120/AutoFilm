@@ -79,6 +79,8 @@ mod tests {
 
         assert_eq!(config.alist2strm_tasks.len(), 2);
         assert_eq!(config.ani2alist_tasks.len(), 3);
+        assert_eq!(config.library_poster_tasks.len(), 1);
+        assert_eq!(config.media_servers.len(), 1);
         assert_eq!(config.alist.len(), 3);
         assert_eq!(config.alist[0].id, "我的Alist");
         assert_eq!(config.alist[0].base_url, "http://alist:5244");
@@ -107,6 +109,11 @@ mod tests {
         assert_eq!(
             config.ani2alist_tasks[0].source.rss_url,
             "https://api.ani.rip/ani-download.xml"
+        );
+        assert_eq!(config.library_poster_tasks[0].server, "我的Jellyfin");
+        assert_eq!(
+            config.library_poster_tasks[0].render.style,
+            library_poster::Style::Collage
         );
     }
 

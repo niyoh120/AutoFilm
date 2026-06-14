@@ -3,4 +3,4 @@ mod renderer;
 mod runner;
 
 pub use config::*;
-pub use runner::{LibraryPoster, Summary};
+pub use runner::LibraryPoster;
