@@ -17,12 +17,11 @@ pub fn render(
 ) -> Result<image::RgbaImage> {
     let source = images.first().ok_or(super::Error::MissingImage)?;
     let (width, height) = dimensions;
+    let width_f = width as f32;
+    let height_f = height as f32;
     let theme = dominant_color(source);
     let mut canvas = cover(source, width, height);
-    canvas = optimized_blur(
-        &canvas,
-        config.blur_radius.max(8.0) * height as f32 / 1080.0,
-    );
+    canvas = optimized_blur(&canvas, config.blur_radius.max(8.0) * height_f / 1080.0);
     tint(
         &mut canvas,
         adjust_brightness(theme, 0.82),
@@ -36,10 +35,10 @@ pub fn render(
         fonts,
         i32::try_from(width / 2).unwrap_or(i32::MAX),
         i32::try_from(height / 2).unwrap_or(i32::MAX),
-        height as f32 * 0.15,
-        height as f32 * 0.065,
+        height_f * 0.15,
+        height_f * 0.065,
         Rgba([255, 255, 255, 235]),
-        (width as f32 * 0.48) as i32,
+        (width_f * 0.48) as i32,
     );
     Ok(canvas)
 }

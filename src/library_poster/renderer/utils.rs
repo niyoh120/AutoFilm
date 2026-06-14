@@ -10,18 +10,33 @@ use super::Fonts;
 /// 将素材按“填满画布并居中裁剪”的方式缩放。
 pub fn cover(image: &DynamicImage, width: u32, height: u32) -> RgbaImage {
     let (source_width, source_height) = image.dimensions();
-    let scale = f64::max(
-        width as f64 / source_width as f64,
-        height as f64 / source_height as f64,
-    );
-    let resized_width = (source_width as f64 * scale).ceil() as u32;
-    let resized_height = (source_height as f64 * scale).ceil() as u32;
+    let (resized_width, resized_height) =
+        cover_resize_dimensions(source_width, source_height, width, height);
     let resized = image
         .resize_exact(resized_width, resized_height, FilterType::Lanczos3)
         .to_rgba8();
     let left = resized_width.saturating_sub(width) / 2;
     let top = resized_height.saturating_sub(height) / 2;
     image::imageops::crop_imm(&resized, left, top, width, height).to_image()
+}
+
+/// 计算覆盖目标区域所需的缩放尺寸，把浮点转换集中在图像库边界。
+pub(super) fn cover_resize_dimensions(
+    source_width: u32,
+    source_height: u32,
+    target_width: u32,
+    target_height: u32,
+) -> (u32, u32) {
+    let source_width_f = source_width as f32;
+    let source_height_f = source_height as f32;
+    let scale = f32::max(
+        target_width as f32 / source_width_f,
+        target_height as f32 / source_height_f,
+    );
+    (
+        (source_width_f * scale).ceil() as u32,
+        (source_height_f * scale).ceil() as u32,
+    )
 }
 
 /// 使用缩略图量化统计提取适合作为背景的主题色。
@@ -43,14 +58,17 @@ pub fn dominant_color(image: &DynamicImage) -> Rgba<u8> {
 
 fn is_suitable_theme_color(color: [u8; 3]) -> bool {
     let [red, green, blue] = color;
-    let maximum = red.max(green).max(blue) as f32 / 255.0;
-    let minimum = red.min(green).min(blue) as f32 / 255.0;
+    let red = f32::from(red);
+    let green = f32::from(green);
+    let blue = f32::from(blue);
+    let maximum = red.max(green).max(blue) / 255.0;
+    let minimum = red.min(green).min(blue) / 255.0;
     let saturation = if maximum == 0.0 {
         0.0
     } else {
         (maximum - minimum) / maximum
     };
-    let luminance = (0.299 * red as f32 + 0.587 * green as f32 + 0.114 * blue as f32) / 255.0;
+    let luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255.0;
 
     (0.16..=0.86).contains(&luminance) && saturation >= 0.16
 }
@@ -58,8 +76,9 @@ fn is_suitable_theme_color(color: [u8; 3]) -> bool {
 pub fn gradient_background(width: u32, height: u32, color: Rgba<u8>) -> RgbaImage {
     let left = adjust_brightness(color, 0.48);
     let right = adjust_brightness(color, 1.32);
+    let width_f = width.max(1) as f32;
     RgbaImage::from_fn(width, height, |x, _| {
-        let progress = x as f32 / width.max(1) as f32;
+        let progress = x as f32 / width_f;
         mix_colors(left, right, progress.powf(0.72))
     })
 }

@@ -19,23 +19,24 @@ pub fn render(
 ) -> Result<RgbaImage> {
     let source = images.first().ok_or(super::Error::MissingImage)?;
     let (width, height) = dimensions;
+    let width_f = width as f32;
+    let height_f = height as f32;
     let theme = dominant_color(source);
     let mut canvas = cover(source, width, height);
-    canvas = optimized_blur(
-        &canvas,
-        config.blur_radius.max(0.0) * height as f32 / 1080.0,
-    );
+    canvas = optimized_blur(&canvas, config.blur_radius.max(0.0) * height_f / 1080.0);
     tint(
         &mut canvas,
         adjust_brightness(theme, 0.78),
         config.color_strength.clamp(0.0, 1.0),
     );
 
-    let card_height = (height as f32 * 0.76) as u32;
-    let card_width = (card_height as f32 * 0.70) as u32;
-    let target_center_x = width as f32 * 0.75;
-    let bottom_edge_y = height as f32 * 0.900;
-    let pivot_step = width as f32 * 0.008;
+    let card_height = (height_f * 0.76) as u32;
+    let card_height_f = card_height as f32;
+    let card_width = (card_height_f * 0.70) as u32;
+    let card_width_f = card_width as f32;
+    let target_center_x = width_f * 0.75;
+    let bottom_edge_y = height_f * 0.900;
+    let pivot_step = width_f * 0.008;
 
     // 根据实际素材数量使用 7/5/3/1 层，避免重复图片填满卡片堆。
     let layers = layers_for_count(images.len(), pivot_step);
@@ -43,8 +44,8 @@ pub fn render(
         .iter()
         .copied()
         .map(|layer| {
-            let layer_width = (card_width as f32 * layer.scale) as u32;
-            let layer_height = (card_height as f32 * layer.scale) as u32;
+            let layer_width = (card_width_f * layer.scale) as u32;
+            let layer_height = (card_height_f * layer.scale) as u32;
             let card = prepare_card(
                 &images[layer.image_index],
                 layer_width,
@@ -69,9 +70,9 @@ pub fn render(
                 &layer.card.image,
                 x,
                 y,
-                (height as f32 * 0.008) as i64,
-                (height as f32 * 0.010) as i64,
-                height as f32 * 0.010,
+                (height_f * 0.008) as i64,
+                (height_f * 0.010) as i64,
+                height_f * 0.010,
                 138,
             );
         } else {
@@ -84,12 +85,12 @@ pub fn render(
         title,
         subtitle,
         fonts,
-        (width as f32 * 0.25) as i32,
-        (height as f32 * 0.37) as i32,
-        height as f32 * 0.14,
-        height as f32 * 0.055,
+        (width_f * 0.25) as i32,
+        (height_f * 0.37) as i32,
+        height_f * 0.14,
+        height_f * 0.055,
         Rgba([255, 255, 255, 235]),
-        (width as f32 * 0.40) as i32,
+        (width_f * 0.40) as i32,
     );
     Ok(canvas)
 }
@@ -112,16 +113,18 @@ fn layers_for_count(image_count: usize, pivot_step: f32) -> Vec<Layer> {
         _ => 1,
     };
     let side_count = (visible_count - 1) / 2;
+    let side_count_f = side_count.max(1) as f32;
     let mut layers = Vec::with_capacity(visible_count);
 
     // 先从最外侧绘制到内侧，最后绘制中央主卡。
     for distance in (1..=side_count).rev() {
-        let progress = distance as f32 / side_count.max(1) as f32;
+        let distance_f = distance as f32;
+        let progress = distance_f / side_count_f;
         let scale = 1.0 - progress * 0.055;
         let darkness = progress * 0.30;
         let opacity = (255.0 - progress * 36.0) as u8;
         let angle = progress * 11.5;
-        let offset = pivot_step * distance as f32;
+        let offset = pivot_step * distance_f;
         let left_index = distance * 2 - 1;
         let right_index = distance * 2;
 
@@ -167,7 +170,7 @@ fn prepare_card(
     apply_rounded_corners(&mut card, (width as f32 * 0.10) as u32);
     if opacity < 255 {
         for pixel in card.pixels_mut() {
-            pixel[3] = ((pixel[3] as u16 * opacity as u16) / 255) as u8;
+            pixel[3] = ((u16::from(pixel[3]) * u16::from(opacity)) / 255) as u8;
         }
     }
     card

@@ -1,6 +1,9 @@
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 
-use super::utils::{adjust_brightness, dominant_color, draw_titles_wrapped, optimized_blur, tint};
+use super::utils::{
+    adjust_brightness, cover_resize_dimensions, dominant_color, draw_titles_wrapped,
+    optimized_blur, tint,
+};
 use super::{Fonts, Result};
 use crate::library_poster::RenderConfig;
 
@@ -15,12 +18,11 @@ pub fn render(
 ) -> Result<RgbaImage> {
     let source = images.first().ok_or(super::Error::MissingImage)?;
     let (width, height) = dimensions;
+    let width_f = width as f32;
+    let height_f = height as f32;
     let theme = dominant_color(source);
     let mut canvas = super::utils::cover(source, width, height);
-    canvas = optimized_blur(
-        &canvas,
-        config.blur_radius.max(0.0) * height as f32 / 1080.0,
-    );
+    canvas = optimized_blur(&canvas, config.blur_radius.max(0.0) * height_f / 1080.0);
     tint(
         &mut canvas,
         adjust_brightness(theme, 0.78),
@@ -28,11 +30,12 @@ pub fn render(
     );
 
     let foreground = align_image_right(source, width, height);
-    let feather_width = (width as f32 * 0.004).max(1.5);
-    let shadow_width = (width as f32 * 0.012).max(3.0);
+    let feather_width = (width_f * 0.004).max(1.5);
+    let shadow_width = (width_f * 0.012).max(3.0);
+    let height_denominator = height.max(1) as f32;
     for y in 0..height {
-        let progress = y as f32 / height.max(1) as f32;
-        let boundary = width as f32 * (0.55 - progress * 0.15);
+        let progress = y as f32 / height_denominator;
+        let boundary = width_f * (0.55 - progress * 0.15);
         let blend_start = (boundary - feather_width).max(0.0) as u32;
 
         for x in blend_start..width {
@@ -54,12 +57,12 @@ pub fn render(
         title,
         subtitle,
         fonts,
-        (width as f32 * 0.25) as i32,
-        (height as f32 * 0.36) as i32,
-        height as f32 * 0.15,
-        height as f32 * 0.06,
+        (width_f * 0.25) as i32,
+        (height_f * 0.36) as i32,
+        height_f * 0.15,
+        height_f * 0.06,
         Rgba([255, 255, 255, 235]),
-        (width as f32 * 0.40) as i32,
+        (width_f * 0.40) as i32,
     );
     Ok(canvas)
 }
@@ -68,12 +71,8 @@ pub fn render(
 fn align_image_right(source: &DynamicImage, width: u32, height: u32) -> RgbaImage {
     let target_width = (width as f32 * 0.68) as u32;
     let (source_width, source_height) = source.dimensions();
-    let scale = f64::max(
-        target_width as f64 / source_width as f64,
-        height as f64 / source_height as f64,
-    );
-    let resized_width = (source_width as f64 * scale).ceil() as u32;
-    let resized_height = (source_height as f64 * scale).ceil() as u32;
+    let (resized_width, resized_height) =
+        cover_resize_dimensions(source_width, source_height, target_width, height);
     let resized = source
         .resize_exact(
             resized_width,
