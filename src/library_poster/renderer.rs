@@ -95,13 +95,13 @@ mod tests {
         let previews = [
             (Style::Card, "动漫", "ANIME", "img/海报/动漫", "card"),
             (Style::Split, "电影", "MOVIE", "img/海报/电影", "split"),
-            (Style::Collage, "动漫", "ANIME", "img/海报/动漫", "card"),
+            (Style::Collage, "动漫", "ANIME", "img/海报/动漫", "collage"),
             (
                 Style::Blur,
                 "电视剧",
                 "TV SERIES",
                 "img/海报/电视剧",
-                "collage",
+                "blur",
             ),
         ];
         std::fs::create_dir_all("img/library-poster").unwrap();
