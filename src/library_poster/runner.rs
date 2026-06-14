@@ -465,14 +465,23 @@ mod tests {
             title: String::new(),
             subtitle: String::new(),
             style: Some(Style::Split),
-            resolution: Some(Resolution::Custom(1600, 900)),
+            resolution: Some(Resolution::Custom {
+                width: 1600,
+                height: 900,
+            }),
             sort: Sort::Random,
         };
 
         let result = effective_render_config(&default, &library);
 
         assert_eq!(result.style, Style::Split);
-        assert_eq!(result.resolution, Resolution::Custom(1600, 900));
+        assert_eq!(
+            result.resolution,
+            Resolution::Custom {
+                width: 1600,
+                height: 900
+            }
+        );
     }
 
     #[test]

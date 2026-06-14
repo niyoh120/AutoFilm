@@ -142,8 +142,5 @@ library_poster_tasks:
         title: 电影
         subtitle: MOVIE
         style: split                                  # 可覆盖任务默认风格
-        resolution:                                   # 自定义分辨率使用具名宽高
-          custom:
-            width: 1600
-            height: 900
+        resolution: {width: 1600, height: 900}        # 自定义分辨率
         sort: random

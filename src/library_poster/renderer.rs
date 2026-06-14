@@ -75,7 +75,10 @@ mod tests {
         for style in [Style::Card, Style::Split, Style::Collage, Style::Blur] {
             let config = RenderConfig {
                 style,
-                resolution: Resolution::Custom(640, 360),
+                resolution: Resolution::Custom {
+                    width: 640,
+                    height: 360,
+                },
                 ..RenderConfig::default()
             };
 
