@@ -3,7 +3,8 @@ use image::{DynamicImage, Rgba, RgbaImage};
 use imageproc::geometric_transformations::{Interpolation, rotate_about_center};
 
 use super::utils::{
-    apply_rounded_corners, cover, dominant_color, draw_titles, gradient_background,
+    apply_rounded_corners, cover, dominant_color, draw_titles_wrapped, gradient_background,
+    overlay_with_shadow,
 };
 use super::{Fonts, Result};
 use crate::library_poster::RenderConfig;
@@ -38,6 +39,8 @@ pub fn render(
         (grid_height + column_stagger + height as f32 * 0.06 + rotation_padding * 2.0).ceil()
             as u32;
 
+    // 参考原实现的视觉权重，把前两张素材放在更显眼的中间位置。
+    let source_order = [2, 0, 4, 3, 1, 5, 8, 7, 6];
     let mut posters = (0..9)
         .map(|index| {
             let column = index / 3;
@@ -53,7 +56,7 @@ pub fn render(
                 } else {
                     column_stagger / 2.0
                 };
-            let source = &images[index % images.len()];
+            let source = &images[source_order[index] % images.len()];
             let mut card = cover(source, card_width, card_height);
             apply_rounded_corners(&mut card, (card_width as f32 * 0.08) as u32);
 
@@ -72,11 +75,15 @@ pub fn render(
 
     let mut collage = RgbaImage::from_pixel(collage_width, collage_height, Rgba([0, 0, 0, 0]));
     for poster in posters {
-        overlay(
+        overlay_with_shadow(
             &mut collage,
             &poster.card,
             (poster.center_x - poster.card.width() as f32 / 2.0) as i64,
             (poster.center_y - poster.card.height() as f32 / 2.0) as i64,
+            (width as f32 * 0.008) as i64,
+            (height as f32 * 0.014) as i64,
+            height as f32 * 0.014,
+            150,
         );
     }
 
@@ -90,7 +97,7 @@ pub fn render(
             as i64,
     );
 
-    draw_titles(
+    draw_titles_wrapped(
         &mut canvas,
         title,
         subtitle,
@@ -100,6 +107,7 @@ pub fn render(
         height as f32 * 0.15,
         height as f32 * 0.06,
         text_color(theme),
+        (width as f32 * 0.40) as i32,
     );
     Ok(canvas)
 }

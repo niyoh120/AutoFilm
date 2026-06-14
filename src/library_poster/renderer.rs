@@ -71,6 +71,19 @@ mod tests {
             .collect()
     }
 
+    fn image_count(count: usize) -> Vec<DynamicImage> {
+        (0..count)
+            .map(|index| {
+                let color = [
+                    40 + (index as u8).saturating_mul(15),
+                    80 + (index as u8).saturating_mul(9),
+                    180_u8.saturating_sub((index as u8).saturating_mul(11)),
+                ];
+                DynamicImage::ImageRgb8(RgbImage::from_pixel(600, 900, Rgb(color)))
+            })
+            .collect()
+    }
+
     #[test]
     fn renders_all_styles_at_requested_resolution() {
         for style in [Style::Card, Style::Split, Style::Collage, Style::Blur] {
@@ -87,6 +100,54 @@ mod tests {
 
             assert_eq!(poster.dimensions(), (640, 360));
         }
+    }
+
+    #[test]
+    fn collage_accepts_partial_and_complete_image_sets() {
+        for count in [1, 4, 9] {
+            let config = RenderConfig {
+                style: Style::Collage,
+                resolution: Resolution::Custom {
+                    width: 640,
+                    height: 360,
+                },
+                ..RenderConfig::default()
+            };
+
+            let poster = render(
+                &image_count(count),
+                "动漫",
+                "ANIME COLLECTION",
+                &fonts(),
+                &config,
+            )
+            .unwrap();
+
+            assert_eq!(poster.dimensions(), (640, 360));
+        }
+    }
+
+    #[test]
+    fn blur_accepts_long_english_subtitle() {
+        let config = RenderConfig {
+            style: Style::Blur,
+            resolution: Resolution::Custom {
+                width: 640,
+                height: 360,
+            },
+            ..RenderConfig::default()
+        };
+
+        let poster = render(
+            &images(),
+            "电视剧",
+            "TELEVISION SERIES COLLECTION",
+            &fonts(),
+            &config,
+        )
+        .unwrap();
+
+        assert_eq!(poster.dimensions(), (640, 360));
     }
 
     #[test]

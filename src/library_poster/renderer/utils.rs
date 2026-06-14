@@ -184,32 +184,6 @@ pub fn overlay_with_shadow(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn draw_titles(
-    canvas: &mut RgbaImage,
-    title: &str,
-    subtitle: &str,
-    fonts: &Fonts,
-    center_x: i32,
-    title_y: i32,
-    title_size: f32,
-    subtitle_size: f32,
-    color: Rgba<u8>,
-) {
-    draw_titles_wrapped(
-        canvas,
-        title,
-        subtitle,
-        fonts,
-        center_x,
-        title_y,
-        title_size,
-        subtitle_size,
-        color,
-        (center_x.max(1) as f32 * 1.65) as i32,
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
 pub fn draw_titles_wrapped(
     canvas: &mut RgbaImage,
     title: &str,
@@ -250,6 +224,49 @@ pub fn draw_titles_wrapped(
         );
         subtitle_y += subtitle_height + (subtitle_size * 0.22) as i32;
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn draw_titles_centered(
+    canvas: &mut RgbaImage,
+    title: &str,
+    subtitle: &str,
+    fonts: &Fonts,
+    center_x: i32,
+    center_y: i32,
+    title_size: f32,
+    subtitle_size: f32,
+    color: Rgba<u8>,
+    max_width: i32,
+) {
+    let title_scale = PxScale::from(title_size);
+    let subtitle_scale = PxScale::from(subtitle_size);
+    let subtitle_lines = wrap_text(&fonts.subtitle, subtitle_scale, subtitle, max_width);
+    let title_height = line_height(&fonts.title, title_scale);
+    let subtitle_height = line_height(&fonts.subtitle, subtitle_scale);
+    let title_spacing = (title_size * 0.18) as i32;
+    let line_spacing = (subtitle_size * 0.22) as i32;
+    let subtitle_block_height = if subtitle_lines.is_empty() {
+        0
+    } else {
+        subtitle_height * subtitle_lines.len() as i32
+            + line_spacing * subtitle_lines.len().saturating_sub(1) as i32
+            + title_spacing
+    };
+    let block_height = title_height + subtitle_block_height;
+
+    draw_titles_wrapped(
+        canvas,
+        title,
+        subtitle,
+        fonts,
+        center_x,
+        center_y - block_height / 2,
+        title_size,
+        subtitle_size,
+        color,
+        max_width,
+    );
 }
 
 pub fn wrap_text(font: &FontArc, scale: PxScale, text: &str, max_width: i32) -> Vec<String> {

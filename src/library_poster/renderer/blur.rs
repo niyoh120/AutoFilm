@@ -1,7 +1,8 @@
-use image::imageops::blur;
 use image::{DynamicImage, Rgba};
 
-use super::utils::{cover, dominant_color, draw_titles, tint};
+use super::utils::{
+    adjust_brightness, cover, dominant_color, draw_titles_centered, optimized_blur, tint,
+};
 use super::{Fonts, Result};
 use crate::library_poster::RenderConfig;
 
@@ -18,26 +19,27 @@ pub fn render(
     let (width, height) = dimensions;
     let theme = dominant_color(source);
     let mut canvas = cover(source, width, height);
-    canvas = blur(
+    canvas = optimized_blur(
         &canvas,
         config.blur_radius.max(8.0) * height as f32 / 1080.0,
     );
     tint(
         &mut canvas,
-        theme,
-        config.color_strength.clamp(0.0, 1.0) * 0.72,
+        adjust_brightness(theme, 0.82),
+        config.color_strength.clamp(0.0, 1.0),
     );
 
-    draw_titles(
+    draw_titles_centered(
         &mut canvas,
         title,
         subtitle,
         fonts,
         i32::try_from(width / 2).unwrap_or(i32::MAX),
-        (height as f32 * 0.35) as i32,
+        i32::try_from(height / 2).unwrap_or(i32::MAX),
         height as f32 * 0.15,
         height as f32 * 0.065,
-        Rgba([255, 255, 255, 255]),
+        Rgba([255, 255, 255, 235]),
+        (width as f32 * 0.48) as i32,
     );
     Ok(canvas)
 }
