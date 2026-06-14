@@ -33,30 +33,40 @@ pub fn render(
 
     let card_height = (height as f32 * 0.76) as u32;
     let card_width = (card_height as f32 * 0.70) as u32;
-    let center_x = width as f32 * 0.745;
+    let target_center_x = width as f32 * 0.75;
     let bottom_edge_y = height as f32 * 0.900;
     let pivot_step = width as f32 * 0.008;
 
     // 根据实际素材数量使用 7/5/3/1 层，避免重复图片填满卡片堆。
     let layers = layers_for_count(images.len(), pivot_step);
+    let rendered_layers = layers
+        .iter()
+        .copied()
+        .map(|layer| {
+            let layer_width = (card_width as f32 * layer.scale) as u32;
+            let layer_height = (card_height as f32 * layer.scale) as u32;
+            let card = prepare_card(
+                &images[layer.image_index],
+                layer_width,
+                layer_height,
+                layer.darkness,
+                layer.opacity,
+            );
+            RenderedLayer {
+                card: rotate_around_bottom_anchor(&card, layer.angle),
+                offset: layer.offset,
+            }
+        })
+        .collect::<Vec<_>>();
+    let visual_center = visible_center_x(&rendered_layers);
 
-    for (depth, layer) in layers.iter().copied().enumerate() {
-        let layer_width = (card_width as f32 * layer.scale) as u32;
-        let layer_height = (card_height as f32 * layer.scale) as u32;
-        let card = prepare_card(
-            &images[layer.image_index],
-            layer_width,
-            layer_height,
-            layer.darkness,
-            layer.opacity,
-        );
-        let rotated = rotate_around_bottom_anchor(&card, layer.angle);
-        let x = (center_x + layer.offset - rotated.anchor_x) as i64;
-        let y = (bottom_edge_y - rotated.opaque_bottom) as i64;
-        if depth + 1 == layers.len() {
+    for (depth, layer) in rendered_layers.iter().enumerate() {
+        let x = (target_center_x + layer.offset - layer.card.anchor_x - visual_center) as i64;
+        let y = (bottom_edge_y - layer.card.opaque_bottom) as i64;
+        if depth + 1 == rendered_layers.len() {
             overlay_with_shadow(
                 &mut canvas,
-                &rotated.image,
+                &layer.card.image,
                 x,
                 y,
                 (height as f32 * 0.008) as i64,
@@ -65,7 +75,7 @@ pub fn render(
                 138,
             );
         } else {
-            image::imageops::overlay(&mut canvas, &rotated.image, x, y);
+            image::imageops::overlay(&mut canvas, &layer.card.image, x, y);
         }
     }
 
@@ -169,6 +179,53 @@ struct AnchoredCard {
     opaque_bottom: f32,
 }
 
+struct RenderedLayer {
+    card: AnchoredCard,
+    offset: f32,
+}
+
+#[derive(Clone, Copy)]
+struct AlphaBounds {
+    left: u32,
+    right: u32,
+}
+
+/// 使用所有卡片的真实可见边界计算视觉中心，避免透明旋转画布影响定位。
+fn visible_center_x(layers: &[RenderedLayer]) -> f32 {
+    let bounds = layers.iter().filter_map(|layer| {
+        alpha_bounds(&layer.card.image).map(|bounds| {
+            (
+                layer.offset - layer.card.anchor_x + bounds.left as f32,
+                layer.offset - layer.card.anchor_x + bounds.right as f32,
+            )
+        })
+    });
+    let (left, right) = bounds.fold(
+        (f32::INFINITY, f32::NEG_INFINITY),
+        |(left, right), (layer_left, layer_right)| (left.min(layer_left), right.max(layer_right)),
+    );
+    if left.is_finite() && right.is_finite() {
+        (left + right) / 2.0
+    } else {
+        0.0
+    }
+}
+
+fn alpha_bounds(image: &RgbaImage) -> Option<AlphaBounds> {
+    let mut left = image.width();
+    let mut right = 0;
+    let mut found = false;
+    for (x, _, pixel) in image.enumerate_pixels() {
+        if pixel[3] <= 8 {
+            continue;
+        }
+        left = left.min(x);
+        right = right.max(x);
+        found = true;
+    }
+    found.then_some(AlphaBounds { left, right })
+}
+
 /// 以卡片底部中央为共同轴心旋转，让扇形顶部展开而底部保持收束。
 fn rotate_around_bottom_anchor(card: &RgbaImage, angle: f32) -> AnchoredCard {
     if angle == 0.0 {
@@ -259,5 +316,42 @@ mod tests {
             assert_eq!(layers.len(), expected);
             assert!(layers.iter().all(|layer| layer.image_index < available));
         }
+    }
+
+    #[test]
+    fn visible_center_ignores_transparent_rotation_padding() {
+        let left = AnchoredCard {
+            image: padded_card(40, 60, 10, 8),
+            anchor_x: 30.0,
+            opaque_bottom: 67.0,
+        };
+        let right = AnchoredCard {
+            image: padded_card(40, 60, 14, 8),
+            anchor_x: 34.0,
+            opaque_bottom: 67.0,
+        };
+        let layers = [
+            RenderedLayer {
+                card: left,
+                offset: -20.0,
+            },
+            RenderedLayer {
+                card: right,
+                offset: 20.0,
+            },
+        ];
+
+        assert!(visible_center_x(&layers).abs() <= 0.5);
+    }
+
+    fn padded_card(width: u32, height: u32, left: u32, top: u32) -> RgbaImage {
+        let mut image =
+            RgbaImage::from_pixel(width + left * 2, height + top * 2, Rgba([0, 0, 0, 0]));
+        for y in top..top + height {
+            for x in left..left + width {
+                image.put_pixel(x, y, Rgba([80, 160, 220, 255]));
+            }
+        }
+        image
     }
 }
