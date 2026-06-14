@@ -34,7 +34,7 @@ pub fn render(
     let card_height = (height as f32 * 0.76) as u32;
     let card_width = (card_height as f32 * 0.70) as u32;
     let center_x = width as f32 * 0.745;
-    let bottom_anchor_y = height as f32 * 0.885;
+    let bottom_edge_y = height as f32 * 0.900;
     let pivot_step = width as f32 * 0.008;
 
     // 根据实际素材数量使用 7/5/3/1 层，避免重复图片填满卡片堆。
@@ -51,17 +51,22 @@ pub fn render(
             layer.opacity,
         );
         let rotated = rotate_around_bottom_anchor(&card, layer.angle);
-        let shadow_strength = 88 + depth as u8 * 12;
-        overlay_with_shadow(
-            &mut canvas,
-            &rotated.image,
-            (center_x + layer.offset - rotated.anchor_x) as i64,
-            (bottom_anchor_y - rotated.anchor_y) as i64,
-            (height as f32 * 0.010) as i64,
-            (height as f32 * 0.014) as i64,
-            height as f32 * 0.012,
-            shadow_strength,
-        );
+        let x = (center_x + layer.offset - rotated.anchor_x) as i64;
+        let y = (bottom_edge_y - rotated.opaque_bottom) as i64;
+        if depth + 1 == layers.len() {
+            overlay_with_shadow(
+                &mut canvas,
+                &rotated.image,
+                x,
+                y,
+                (height as f32 * 0.008) as i64,
+                (height as f32 * 0.010) as i64,
+                height as f32 * 0.010,
+                138,
+            );
+        } else {
+            image::imageops::overlay(&mut canvas, &rotated.image, x, y);
+        }
     }
 
     draw_titles_wrapped(
@@ -161,7 +166,7 @@ fn prepare_card(
 struct AnchoredCard {
     image: RgbaImage,
     anchor_x: f32,
-    anchor_y: f32,
+    opaque_bottom: f32,
 }
 
 /// 以卡片底部中央为共同轴心旋转，让扇形顶部展开而底部保持收束。
@@ -170,7 +175,7 @@ fn rotate_around_bottom_anchor(card: &RgbaImage, angle: f32) -> AnchoredCard {
         return AnchoredCard {
             image: card.clone(),
             anchor_x: card.width() as f32 / 2.0,
-            anchor_y: card.height() as f32 * 0.96,
+            opaque_bottom: card.height().saturating_sub(1) as f32,
         };
     }
 
@@ -194,10 +199,16 @@ fn rotate_around_bottom_anchor(card: &RgbaImage, angle: f32) -> AnchoredCard {
         Interpolation::Bicubic,
         Rgba([0, 0, 0, 0]),
     );
+    let opaque_bottom = image
+        .enumerate_pixels()
+        .filter(|(_, _, pixel)| pixel[3] > 8)
+        .map(|(_, y, _)| y)
+        .max()
+        .unwrap_or(0) as f32;
     AnchoredCard {
         image,
         anchor_x: center,
-        anchor_y: center,
+        opaque_bottom,
     }
 }
 
@@ -219,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn rotating_card_keeps_bottom_anchor_centered() {
+    fn rotating_card_tracks_real_opaque_bottom() {
         let card = RgbaImage::from_pixel(200, 300, Rgba([80, 160, 220, 255]));
 
         let rotated = rotate_around_bottom_anchor(&card, 8.0);
@@ -228,7 +239,7 @@ mod tests {
         assert!(rotated.image.height() > card.height());
         assert_eq!(rotated.image.get_pixel(0, 0)[3], 0);
         assert_eq!(rotated.anchor_x, rotated.image.width() as f32 / 2.0);
-        assert_eq!(rotated.anchor_y, rotated.image.height() as f32 / 2.0);
+        assert!(rotated.opaque_bottom > rotated.image.height() as f32 / 2.0);
     }
 
     #[test]
